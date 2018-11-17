@@ -125,6 +125,8 @@ class Bot:
         self._handlers = {mt: no_handle(mt) for mt in MESSAGE_TYPES}
         self._commands = []
         self._callbacks = []
+        self._once = {}
+        self._chat_defaults = []
         self._inlines = []
         self._checkouts = []
         self._default = lambda chat, message: None
@@ -251,6 +253,13 @@ class Bot:
             return fn
 
         return decorator
+
+    def chat_once(self, chat, fn):
+        """
+        Manually
+        """
+        self._once[chat.id] = fn
+
 
     def default(self, callback):
         """
@@ -638,6 +647,9 @@ class Bot:
         # No match, run default if it's a 1to1 chat
         # However, if default_in_groups option is active, run default in any chat (not only 1to1)
         if not chat.is_group() or self.default_in_groups:
+            once_handler = self._once.pop(chat.id, None)
+            if once_handler:
+                return once_handler(chat, message)
             self.track(message, "default")
             return self._default(chat, message)
 

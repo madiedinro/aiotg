@@ -371,6 +371,16 @@ class Chat:
         """
         return self.type == "group" or self.type == "supergroup"
 
+    def once(self, fn):
+        """
+        Handle next message in chat with handler once
+
+        :param str name: Name of the chat stage
+        """
+        self.bot.chat_once(self, fn)
+        
+
+
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
         self.bot = bot
         self.message = src_message
