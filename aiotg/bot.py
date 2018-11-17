@@ -126,7 +126,6 @@ class Bot:
         self._commands = []
         self._callbacks = []
         self._once = {}
-        self._chat_defaults = []
         self._inlines = []
         self._checkouts = []
         self._default = lambda chat, message: None
