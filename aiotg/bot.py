@@ -255,9 +255,16 @@ class Bot:
 
     def chat_once(self, chat, fn):
         """
-        Manually
+        Once handle default cmd
         """
         self._once[chat.id] = fn
+
+
+    def chat_once_off(self, chat):
+        """
+        Remove once default handler
+        """
+        self._once[chat.id].pop(chat.id, None)
 
 
     def default(self, callback):

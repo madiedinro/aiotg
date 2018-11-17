@@ -379,6 +379,11 @@ class Chat:
         """
         self.bot.chat_once(self, fn)
         
+    def off(self):
+        """
+
+        """
+        self.bot.chat_once_off(self)
 
 
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
