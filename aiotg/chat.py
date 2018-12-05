@@ -378,7 +378,7 @@ class Chat:
         :param str name: Name of the chat stage
         """
         self.bot.chat_once(self, fn)
-        
+
     def off(self):
         """
 
