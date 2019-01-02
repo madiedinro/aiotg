@@ -364,6 +364,7 @@ class Chat:
         return self.bot.api_call(
             "deleteMessage", chat_id=self.id, message_id=message_id
         )
+
     def is_private(self):
         return self.type == 'private'
 
