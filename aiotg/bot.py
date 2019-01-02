@@ -8,6 +8,8 @@ import aiohttp
 from aiohttp import web
 from aiosocksy import Socks4Auth, Socks5Auth, connector as socks_connector
 import json
+from collections import defaultdict
+from types import AsyncGeneratorType, CoroutineType
 
 try:
     import certifi
@@ -80,17 +82,16 @@ class Bot:
     _running = False
     _offset = 0
 
-    def __init__(
-        self,
-        api_token,
-        api_timeout=API_TIMEOUT,
-        chatbase_token=None,
-        name=None,
-        json_serialize=json.dumps,
-        json_deserialize=json.loads,
-        default_in_groups=False,
-        proxy=None,
-    ):
+    def __init__(self,
+                 api_token,
+                 api_timeout=API_TIMEOUT,
+                 chatbase_token=None,
+                 name=None,
+                 json_serialize=json.dumps,
+                 json_deserialize=json.loads,
+                 default_in_groups=False,
+                 proxy=None,
+                 loop=None):
         self.api_token = api_token
         self.api_timeout = api_timeout
         self.chatbase_token = chatbase_token
@@ -101,6 +102,7 @@ class Bot:
         self.webhook_url = None
         self._session = None
         self.proxy = proxy
+        self._loop = loop or asyncio.get_event_loop()
 
         self._proxy_is_socks = self.proxy and self.proxy.startswith("socks")
         if self._proxy_is_socks and "@" in self.proxy:
@@ -112,8 +114,10 @@ class Bot:
             elif proxy_scheme == "socks4":
                 proxy_auth_factory = Socks4Auth
             else:
-                raise ValueError("Unknown SOCKS-proxy scheme: {}".format(proxy_scheme))
-            self.proxy_auth = proxy_auth_factory(proxy_user, password=proxy_pass)
+                raise ValueError(
+                    "Unknown SOCKS-proxy scheme: {}".format(proxy_scheme))
+            self.proxy_auth = proxy_auth_factory(
+                proxy_user, password=proxy_pass)
             self.proxy = "{}://{}".format(proxy_scheme, proxy_loc)
         else:
             self.proxy_auth = None
@@ -126,6 +130,9 @@ class Bot:
         self._commands = []
         self._callbacks = []
         self._once = {}
+        self._state = dict()
+        self._chats = dict()
+        # self._scripts =
         self._inlines = []
         self._checkouts = []
         self._default = lambda chat, message: None
@@ -149,8 +156,9 @@ class Bot:
         self._running = True
         while self._running:
             updates = await self.api_call(
-                "getUpdates", offset=self._offset + 1, timeout=self.api_timeout
-            )
+                "getUpdates",
+                offset=self._offset + 1,
+                timeout=self.api_timeout)
             self._process_updates(updates)
 
     def run(self, debug=False, reload=None):
@@ -165,7 +173,6 @@ class Bot:
         >>>     bot.run()
 
         """
-        loop = asyncio.get_event_loop()
 
         logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 
@@ -176,10 +183,11 @@ class Bot:
 
         try:
             if reload:
-                loop.run_until_complete(run_with_reloader(loop, bot_loop, self.stop))
+                self._loop.run_until_complete(
+                    run_with_reloader(self._loop, bot_loop, self.stop))
 
             else:
-                loop.run_until_complete(bot_loop)
+                self._loop.run_until_complete(bot_loop)
 
         # User cancels
         except KeyboardInterrupt:
@@ -190,11 +198,11 @@ class Bot:
         # Stop loop
         finally:
             if AIOHTTP_23:
-                loop.run_until_complete(self.session.close())
+                self._loop.run_until_complete(self.session.close())
 
             logger.debug("Closing loop")
-            loop.stop()
-            loop.close()
+            self._loop.stop()
+            self._loop.close()
 
     def run_webhook(self, webhook_url, **options):
         """
@@ -207,11 +215,10 @@ class Bot:
 
         Additional documentation on https://core.telegram.org/bots/api#setwebhook
         """
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.set_webhook(webhook_url, **options))
+        self._loop.run_until_complete(self.set_webhook(webhook_url, **options))
         if webhook_url:
             url = urlparse(webhook_url)
-            app = self.create_webhook_app(url.path, loop)
+            app = self.create_webhook_app(url.path, self._loop)
             host = os.environ.get("HOST", "0.0.0.0")
             port = int(os.environ.get("PORT", 0)) or url.port
 
@@ -220,7 +227,10 @@ class Bot:
 
             web.run_app(app, host=host, port=port)
         else:
-            loop.run_until_complete(self.session.close())
+            self._loop.run_until_complete(self.session.close())
+
+    def future(self):
+        return self._loop.create_future()
 
     def stop_webhook(self):
         """
@@ -259,13 +269,14 @@ class Bot:
         """
         self._once[chat.id] = fn
 
-
     def chat_once_off(self, chat):
         """
         Remove once default handler
         """
         self._once[chat.id].pop(chat.id, None)
 
+    def private_state(self, chat):
+        self._state[chat.id]
 
     def default(self, callback):
         """
@@ -430,8 +441,7 @@ class Bot:
         logger.debug("api_call %s, %s", method, params)
 
         response = await self.session.post(
-            url, data=params, proxy=self.proxy, proxy_auth=self.proxy_auth
-        )
+            url, data=params, proxy=self.proxy, proxy_auth=self.proxy_auth)
 
         if response.status == 200:
             return await response.json(loads=self.json_deserialize)
@@ -482,7 +492,8 @@ class Bot:
         :param options: Additional sendMessage options
             (see https://core.telegram.org/bots/api#sendmessage)
         """
-        return self.api_call("sendMessage", chat_id=chat_id, text=text, **options)
+        return self.api_call(
+            "sendMessage", chat_id=chat_id, text=text, **options)
 
     def edit_message_text(self, chat_id, message_id, text, **options):
         """
@@ -498,10 +509,10 @@ class Bot:
             chat_id=chat_id,
             message_id=message_id,
             text=text,
-            **options
-        )
+            **options)
 
-    def edit_message_reply_markup(self, chat_id, message_id, reply_markup, **options):
+    def edit_message_reply_markup(self, chat_id, message_id, reply_markup,
+                                  **options):
         """
         Edit a reply markup of message in a chat
 
@@ -515,8 +526,7 @@ class Bot:
             chat_id=chat_id,
             message_id=message_id,
             reply_markup=reply_markup,
-            **options
-        )
+            **options)
 
     async def get_file(self, file_id):
         """
@@ -535,8 +545,7 @@ class Bot:
         headers = {"range": range} if range else None
         url = "{0}/file/bot{1}/{2}".format(API_URL, self.api_token, file_path)
         return self.session.get(
-            url, headers=headers, proxy=self.proxy, proxy_auth=self.proxy_auth
-        )
+            url, headers=headers, proxy=self.proxy, proxy_auth=self.proxy_auth)
 
     def get_user_profile_photos(self, user_id, **options):
         """
@@ -546,7 +555,8 @@ class Bot:
         :param options: Additional getUserProfilePhotos options (see
             https://core.telegram.org/bots/api#getuserprofilephotos)
         """
-        return self.api_call("getUserProfilePhotos", user_id=str(user_id), **options)
+        return self.api_call(
+            "getUserProfilePhotos", user_id=str(user_id), **options)
 
     def track(self, message, name="Message"):
         """
@@ -617,29 +627,41 @@ class Bot:
     async def _track(self, message, name):
         response = await self.session.post(
             CHATBASE_URL,
-            data=self.json_serialize(
-                {
-                    "api_key": self.chatbase_token,
-                    "type": "user",
-                    "message": message["text"],
-                    "platform": "telegram",
-                    "user_id": message["from"]["id"],
-                    "version": "1.0",
-                    "not_handled": "true",
-                }
-            ),
+            data=self.json_serialize({
+                "api_key": self.chatbase_token,
+                "type": "user",
+                "message": message["text"],
+                "platform": "telegram",
+                "user_id": message["from"]["id"],
+                "version": "1.0",
+                "not_handled": "true",
+            }),
         )
         if response.status != 200:
             logger.info("error submiting stats %d", response.status)
         await response.release()
 
     def _process_message(self, message):
-        chat = Chat.from_message(self, message)
+        """
+        """
+        chat_data = message['chat']
+        chat = None
+        if chat_data['type'] == 'private':
+            chat = self._chats.get(chat_data['id'])
+
+        if not chat:
+            chat = Chat.from_message(self, message)
+
+        if chat.is_private():
+            self._chats[chat.id] = chat
 
         for mt, func in self._handlers.items():
             if mt in message:
                 self.track(message, mt)
-                return func(chat, message[mt])
+                coro = func(chat, message[mt])
+                # if isinstance(func, AsyncGeneratorType):
+                #     return self.play(chat, coro)
+                return coro
 
         if "text" not in message:
             return
@@ -648,7 +670,14 @@ class Bot:
             m = re.search(patterns, message["text"], re.I)
             if m:
                 self.track(message, handler.__name__)
-                return handler(chat, m)
+                coro = handler(chat, m)
+                # if isinstance(coro, AsyncGeneratorType):
+                #     return self.play(chat, coro)
+                return coro
+
+        if chat.is_waiting():
+            chat.resolve_wait(message['text'])
+            return
 
         # No match, run default if it's a 1to1 chat
         # However, if default_in_groups option is active, run default in any chat (not only 1to1)
@@ -669,7 +698,8 @@ class Bot:
         return self._default_inline(iq)
 
     def _process_callback_query(self, query):
-        chat = Chat.from_message(self, query["message"]) if "message" in query else None
+        chat = Chat.from_message(
+            self, query["message"]) if "message" in query else None
         cq = CallbackQuery(self, query)
         for patterns, handler in self._callbacks:
             match = re.search(patterns, cq.data, re.I)
@@ -715,18 +745,44 @@ class Bot:
             elif "callback_query" in update:
                 coro = self._process_callback_query(update["callback_query"])
             elif "pre_checkout_query" in update:
-                coro = self._process_pre_checkout_query(update["pre_checkout_query"])
+                coro = self._process_pre_checkout_query(
+                    update["pre_checkout_query"])
             else:
                 logger.error("don't know how to handle update: %s", update)
-
         if coro:
             asyncio.ensure_future(coro)
 
+    @staticmethod
+    async def play_gen(chat, agen):
+        nextval = None
+        while True:
+            try:
+                item = await agen.asend(nextval)
+                if nextval:
+                    nextval = None
 
-class TgBot(Bot):
-    def __init__(self, *args, **kwargs):
-        logger.warning("TgBot is depricated, use Bot instead")
-        super().__init__(*args, **kwargs)
+                if isinstance(item, CoroutineType):
+                    nextval = await item
+                elif asyncio.isfuture(item):
+                    nextval = await item
+                    # chat.future = None
+                elif isinstance(item, str):
+                    await chat.send_text(item)
+            except StopAsyncIteration:
+                logger.info('asyncio stop iterator')
+                break
+            except asyncio.CancelledError:
+                logger.warning('asyncio cancelled')
+                break
+            except Exception:
+                logger.exception('ex')
+
+    @staticmethod
+    def play(agen):
+        def wrapper(chat, *args, **kwargs):
+
+            return Bot.play_gen(chat, agen(chat, *args, **kwargs))
+        return wrapper
 
 
 class InlineQuery:
@@ -746,8 +802,7 @@ class InlineQuery:
             "answerInlineQuery",
             inline_query_id=self.query_id,
             results=self.bot.json_serialize(results),
-            **options
-        )
+            **options)
 
 
 class TgInlineQuery(InlineQuery):
@@ -765,8 +820,7 @@ class CallbackQuery:
 
     def answer(self, **options):
         return self.bot.api_call(
-            "answerCallbackQuery", callback_query_id=self.query_id, **options
-        )
+            "answerCallbackQuery", callback_query_id=self.query_id, **options)
 
 
 class PreCheckoutQuery:
@@ -784,11 +838,12 @@ class PreCheckoutQuery:
             pre_checkout_query_id=self.query_id,
             ok=error_message is None,
             error_message=error_message,
-            **options
-        )
+            **options)
 
 
 class BotApiError(RuntimeError):
     def __init__(self, *args, response):
         super().__init__(*args)
         self.response = response
+
+

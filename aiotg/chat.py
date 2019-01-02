@@ -1,4 +1,6 @@
+import asyncio
 import logging
+
 
 logger = logging.getLogger("aiotg")
 
@@ -362,6 +364,8 @@ class Chat:
         return self.bot.api_call(
             "deleteMessage", chat_id=self.id, message_id=message_id
         )
+    def is_private(self):
+        return self.type == 'private'
 
     def is_group(self):
         """
@@ -385,10 +389,26 @@ class Chat:
         """
         self.bot.chat_once_off(self)
 
+    def is_waiting(self):
+        return self.future != None
+
+    def wait_message(self):
+        self.future = self.bot.future()
+        return self.future
+
+    def resolve_wait(self, message):
+        self.future.set_result(message)
+        self.future = None
+
+    def break_play(self):
+        self.future.set_exception(asyncio.CancelledError)
+        self.future = None
 
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
         self.bot = bot
         self.message = src_message
+        self.future = None
+        
         if src_message and "from" in src_message:
             sender = src_message["from"]
         else:
