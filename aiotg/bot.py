@@ -17,7 +17,7 @@ try:
 except ImportError:
     certifi = None
 
-from .chat import Chat, Sender
+from .chat import Chat, Sender, AsyncChatContext
 from .reloader import run_with_reloader
 
 __author__ = "Stepan Zastupov"
@@ -641,19 +641,30 @@ class Bot:
             logger.info("error submiting stats %d", response.status)
         await response.release()
 
-    def _process_message(self, message):
+    def get_or_create_chat_state(self, message):
         """
+
         """
         chat_data = message['chat']
         chat = None
+
         if chat_data['type'] == 'private':
             chat = self._chats.get(chat_data['id'])
 
         if not chat:
             chat = Chat.from_message(self, message)
 
+        # Adding chat to the state
         if chat.is_private():
             self._chats[chat.id] = chat
+
+        return chat
+
+    def _process_message(self, message):
+        """
+        """
+
+        chat = self.get_or_create_chat_state(message)
 
         for mt, func in self._handlers.items():
             if mt in message:
@@ -682,6 +693,7 @@ class Bot:
         # No match, run default if it's a 1to1 chat
         # However, if default_in_groups option is active, run default in any chat (not only 1to1)
         if not chat.is_group() or self.default_in_groups:
+            # TODO: remove this once handler that used for actions chanining 
             once_handler = self._once.pop(chat.id, None)
             if once_handler:
                 return once_handler(chat, message)
@@ -698,12 +710,26 @@ class Bot:
         return self._default_inline(iq)
 
     def _process_callback_query(self, query):
-        chat = Chat.from_message(
-            self, query["message"]) if "message" in query else None
+
+        # chat = self.get_or_create_chat_state(message)
+        # message = 
+
+        chat = self.get_or_create_chat_state(query["message"]) if "message" in query else None
         cq = CallbackQuery(self, query)
+
+        # waiting callback response chat
+        wait_cb_pattern = chat.get_callback_pattern()
+        if wait_cb_pattern:
+            match = re.search(wait_cb_pattern, cq.data, re.I)
+            if match:
+                cq.set_match(match)
+                chat.resolve_callback(cq)
+                return
+
         for patterns, handler in self._callbacks:
             match = re.search(patterns, cq.data, re.I)
             if match:
+                cq.set_match(match)
                 return handler(chat, cq, match)
 
         if chat and not chat.is_group() or self.default_in_groups:
@@ -760,7 +786,6 @@ class Bot:
                 item = await agen.asend(nextval)
                 if nextval:
                     nextval = None
-
                 if isinstance(item, CoroutineType):
                     nextval = await item
                 elif asyncio.isfuture(item):
@@ -768,6 +793,9 @@ class Bot:
                     # chat.future = None
                 elif isinstance(item, str):
                     await chat.send_text(item)
+            except GeneratorExit:
+                logger.warn('generator exit')
+                break
             except StopAsyncIteration:
                 logger.info('asyncio stop iterator')
                 break
@@ -780,7 +808,6 @@ class Bot:
     @staticmethod
     def play(agen):
         def wrapper(chat, *args, **kwargs):
-
             return Bot.play_gen(chat, agen(chat, *args, **kwargs))
         return wrapper
 
@@ -817,10 +844,45 @@ class CallbackQuery:
         self.query_id = src["id"]
         self.data = src["data"]
         self.src = src
+        self.match = None
 
     def answer(self, **options):
         return self.bot.api_call(
             "answerCallbackQuery", callback_query_id=self.query_id, **options)
+
+    def set_match(self, match):
+        self.match = match
+
+
+class Row(list):
+    def __init__(self, *args):
+        self.attached = False
+        if len(args):
+            for item in args:
+                self.append(item)
+
+    def attach(self):
+        self.attached = True
+
+
+class InlineKeyboard(dict):
+    def __init__(self, *rows):
+        self['inline_keyboard'] = [*(rows or [])]
+        self.new_row()
+        
+    def new_row(self):
+        self.row = Row()
+
+    def add_btn(self, btn):
+        self.row.append(btn)
+        if not self.row.attached:
+            self.row.attach()
+            self['inline_keyboard'].append(self.row)
+
+
+class Button(dict):
+    def __init__(self, text, callback_data, **kwargs):
+        super().__init__(text=text, callback_data=callback_data, **kwargs)
 
 
 class PreCheckoutQuery:

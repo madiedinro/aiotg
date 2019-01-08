@@ -20,6 +20,16 @@ class Chat:
         """
         return self.bot.send_message(self.id, text, **options)
 
+    def send_message(self, text, markup=None, parse_mode=None):
+
+        if markup is None:
+            markup = {}
+        return self.send_text(
+            text,
+            reply_markup=self.bot.json_serialize(markup),
+            parse_mode=parse_mode,
+        )
+
     def reply(self, text, markup=None, parse_mode=None):
         """
         Reply to the message this `Chat` object is based on.
@@ -393,22 +403,50 @@ class Chat:
     def is_waiting(self):
         return self.future != None
 
+    def get_callback_pattern(self):
+        if self.future_cb and self.callback_pattern:
+            return self.callback_pattern
+
+    def wait_callback(self, pattern):
+        self.future_cb = self.bot.future()
+        self.callback_pattern = pattern
+        return self.future_cb
+
     def wait_message(self):
         self.future = self.bot.future()
         return self.future
 
     def resolve_wait(self, message):
-        self.future.set_result(message)
+        future = self.future
         self.future = None
+        future.set_result(message)
+
+    def resolve_callback(self, query):
+        self.callback_pattern = None
+        future = self.future_cb
+        self.future_cb = None
+        future.set_result(query)
 
     def break_play(self):
         self.future.set_exception(asyncio.CancelledError)
         self.future = None
 
+    def register_context(self, instance):
+        self.contexts.insert(0, instance)
+    
+    def remove_context(self, instance):
+        self.contexts.remove(instance)
+
+    def new_context(self):
+        return AsyncChatContext(self)
+
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
         self.bot = bot
         self.message = src_message
         self.future = None
+        self.future_cb = None
+        self.callback_pattern = None
+        self.contexts = []
         
         if src_message and "from" in src_message:
             sender = src_message["from"]
@@ -449,3 +487,16 @@ class TgSender(Sender):
     def __init__(self, *args, **kwargs):
         logger.warning("TgSender is depricated, use Sender instead")
         super().__init__(*args, **kwargs)
+
+
+class AsyncChatContext:
+    def __init__(self, chat: Chat):
+        self.chat = chat
+
+    async def __aenter__(self):
+        print('registring context')
+        self.chat.register_context(self)
+
+    async def __aexit__(self, exc_type, exc, tb):
+        print('removing context')
+        self.chat.remove_context(self)
