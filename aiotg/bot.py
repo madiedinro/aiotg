@@ -11,13 +11,14 @@ import json
 from collections import defaultdict
 from types import AsyncGeneratorType, CoroutineType
 
+
 try:
     import certifi
     import ssl
 except ImportError:
     certifi = None
 
-from .chat import Chat, Sender, AsyncChatContext
+from .chat import Chat, Sender, AsyncChatContext, StopChatContext
 from .reloader import run_with_reloader
 
 __author__ = "Stepan Zastupov"
@@ -242,7 +243,8 @@ class Bot:
         """
         Manually register regexp based command
         """
-        self._commands.append((regexp, fn))
+        coro = self.prepare_async_handler(fn)
+        self._commands.append((regexp, coro))
 
     def command(self, regexp):
         """
@@ -297,7 +299,8 @@ class Bot:
         """
         Manually register regexp based callback
         """
-        self._inlines.append((regexp, fn))
+        coro = self.prepare_async_handler(fn)
+        self._inlines.append((regexp, coro))
 
     def inline(self, callback):
         """
@@ -334,7 +337,8 @@ class Bot:
         """
         Manually register regexp based callback
         """
-        self._callbacks.append((regexp, fn))
+        coro = self.prepare_async_handler(fn)
+        self._callbacks.append((regexp, coro))
 
     def callback(self, callback):
         """
@@ -394,7 +398,8 @@ class Bot:
         """
 
         def wrap(callback):
-            self._handlers[msg_type] = callback
+            coro = self.prepare_async_handler(callback)
+            self._handlers[msg_type] = coro
             return callback
 
         return wrap
@@ -660,6 +665,12 @@ class Bot:
 
         return chat
 
+    @classmethod
+    def prepare_async_handler(cls, coro):
+        if isinstance(coro, AsyncGeneratorType):
+            return cls.play(coro)
+        return coro
+
     def _process_message(self, message):
         """
         """
@@ -682,8 +693,6 @@ class Bot:
             if m:
                 self.track(message, handler.__name__)
                 coro = handler(chat, m)
-                # if isinstance(coro, AsyncGeneratorType):
-                #     return self.play(chat, coro)
                 return coro
 
         if chat.is_waiting():
@@ -710,9 +719,6 @@ class Bot:
         return self._default_inline(iq)
 
     def _process_callback_query(self, query):
-
-        # chat = self.get_or_create_chat_state(message)
-        # message = 
 
         chat = self.get_or_create_chat_state(query["message"]) if "message" in query else None
         cq = CallbackQuery(self, query)
@@ -784,31 +790,45 @@ class Bot:
         while True:
             try:
                 item = await agen.asend(nextval)
-                if nextval:
-                    nextval = None
-                if isinstance(item, CoroutineType):
-                    nextval = await item
+                nextval = None
+                if isinstance(item, Exception):
+                    raise item
                 elif asyncio.isfuture(item):
                     nextval = await item
-                    # chat.future = None
+                elif isinstance(item, CoroutineType):
+                    try:
+                        nextval = await item
+                    except Exception as ex:
+                        nextval = ex
                 elif isinstance(item, str):
                     await chat.send_text(item)
             except GeneratorExit:
                 logger.warn('generator exit')
                 break
-            except StopAsyncIteration:
-                logger.info('asyncio stop iterator')
+            except StopChatContext as ex:
+                await chat.send_message(ex.message)
+                break
+            except StopAsyncIteration as ex:
+                logger.info('asyncio stop iterator xx')
                 break
             except asyncio.CancelledError:
                 logger.warning('asyncio cancelled')
                 break
+            except BotApiError as ex:
+                logger.exception('bot api error catched')
+                nextval = ex
             except Exception:
-                logger.exception('ex')
+                logger.exception('not matched ex')
+                break
 
-    @staticmethod
-    def play(agen):
+    
+    @classmethod
+    def play(cls, agen):
         def wrapper(chat, *args, **kwargs):
-            return Bot.play_gen(chat, agen(chat, *args, **kwargs))
+            gen_or_coro = agen(chat, *args, **kwargs)
+            if isinstance(gen_or_coro, AsyncGeneratorType):
+                return cls.play_gen(chat, gen_or_coro)
+            return gen_or_coro
         return wrapper
 
 
@@ -907,5 +927,4 @@ class BotApiError(RuntimeError):
     def __init__(self, *args, response):
         super().__init__(*args)
         self.response = response
-
 

@@ -5,6 +5,12 @@ import logging
 logger = logging.getLogger("aiotg")
 
 
+
+class StopChatContext(StopAsyncIteration):
+    def __init__(self, message):
+        self.message = message
+
+
 class Chat:
     """
     Wrapper for telegram chats, passed to most callbacks
@@ -431,6 +437,9 @@ class Chat:
         self.future.set_exception(asyncio.CancelledError)
         self.future = None
 
+    def stop_play(self, message):
+        return StopChatContext(message)
+
     def register_context(self, instance):
         self.contexts.insert(0, instance)
     
@@ -469,24 +478,12 @@ class Chat:
         return Chat(bot, chat["id"], chat["type"], message)
 
 
-class TgChat(Chat):
-    def __init__(self, *args, **kwargs):
-        logger.warning("TgChat is depricated, use Chat instead")
-        super().__init__(*args, **kwargs)
-
-
 class Sender(dict):
     """A small wrapper for sender info, mostly used for logging"""
 
     def __repr__(self):
         uname = " (%s)" % self["username"] if "username" in self else ""
         return self["first_name"] + uname
-
-
-class TgSender(Sender):
-    def __init__(self, *args, **kwargs):
-        logger.warning("TgSender is depricated, use Sender instead")
-        super().__init__(*args, **kwargs)
 
 
 class AsyncChatContext:
