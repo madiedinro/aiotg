@@ -434,7 +434,8 @@ class Chat:
         future.set_result(query)
 
     def break_play(self):
-        self.future.set_exception(asyncio.CancelledError)
+        if self.future:
+            self.future.set_exception(asyncio.CancelledError)
         self.future = None
 
     def stop_play(self, message):

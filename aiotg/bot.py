@@ -418,7 +418,8 @@ class Bot:
 
         :param str user_id: User id
         """
-        return Chat(self, user_id, "private")
+
+        return self._attach_chat(Chat(self, user_id, "private"))
 
     def group(self, group_id):
         """
@@ -646,22 +647,31 @@ class Bot:
             logger.info("error submiting stats %d", response.status)
         await response.release()
 
+    def _attach_chat(self, chat):
+        self._chats[str(chat.id)] = chat
+        print('chat attached', chat, chat.id)
+        return chat
+    def _get_chat(self, id):
+        if not id:
+            return
+        return self._chats.get(str(id))
+
     def get_or_create_chat_state(self, message):
         """
-
         """
+
         chat_data = message['chat']
         chat = None
 
         if chat_data['type'] == 'private':
-            chat = self._chats.get(chat_data['id'])
+            chat = self._get_chat(chat_data.get('id'))
 
         if not chat:
             chat = Chat.from_message(self, message)
 
         # Adding chat to the state
         if chat.is_private():
-            self._chats[chat.id] = chat
+            self._attach_chat(chat)
 
         return chat
 
