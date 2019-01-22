@@ -672,11 +672,13 @@ class Bot:
         # Adding chat to the state
         if chat.is_private():
             self._attach_chat(chat)
-
         return chat
 
     @classmethod
     def prepare_async_handler(cls, coro):
+        """
+        If it generator then wraps it in coro
+        """
         if isinstance(coro, AsyncGeneratorType):
             return cls.play(coro)
         return coro
@@ -884,6 +886,11 @@ class CallbackQuery:
         self.match = match
 
 
+class Button(dict):
+    def __init__(self, text, callback_data, **kwargs):
+        super().__init__(text=text, callback_data=callback_data, **kwargs)
+
+
 class Row(list):
     def __init__(self, *args):
         self.attached = False
@@ -908,11 +915,6 @@ class InlineKeyboard(dict):
         if not self.row.attached:
             self.row.attach()
             self['inline_keyboard'].append(self.row)
-
-
-class Button(dict):
-    def __init__(self, text, callback_data, **kwargs):
-        super().__init__(text=text, callback_data=callback_data, **kwargs)
 
 
 class PreCheckoutQuery:
