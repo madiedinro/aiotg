@@ -431,9 +431,11 @@ class Chat:
         self.handlers[struct] = fut
         return fut
 
-    def handle_event(self, name, data):
-        waiter = self.event_waiters.pop('name', None)
+    def resolve_event(self, name, data):
+        waiter = self.event_waiters.pop(name, None)
+        print('if waiter')
         if waiter:
+            print('resolving event')
             waiter.set_result(data)
 
     def wait_event(self, name):
