@@ -421,11 +421,36 @@ class Chat:
     def wait_message(self):
         self.future = self.bot.future()
         return self.future
+    
+    def wait_struct(self, struct):
+        """
+        Wait for special message type
+        For example file
+        """
+        fut = self.bot.future()
+        self.handlers[struct] = fut
+        return fut
+
+    def handle_event(self, name, data):
+        waiter = self.event_waiters.pop('name', None)
+        if waiter:
+            waiter.set_result(data)
+
+    def wait_event(self, name):
+        fut = self.bot.future()
+        self.event_waiters[name] = fut
+        return fut
+
+    def wait_photo(self):
+        return self.wait_struct('photo')
+
+    def resolve_future(self, future, message):
+        future.set_result(message)
 
     def resolve_wait(self, message):
         future = self.future
         self.future = None
-        future.set_result(message)
+        self.resolve_future(future, message)
 
     def resolve_callback(self, query):
         self.callback_pattern = None
@@ -452,6 +477,8 @@ class Chat:
 
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
         self.bot = bot
+        self.handlers = {}
+        self.event_waiters = {}
         self.message = src_message
         self.future = None
         self.future_cb = None

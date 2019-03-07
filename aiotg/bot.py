@@ -11,6 +11,7 @@ import json
 from collections import defaultdict
 from types import AsyncGeneratorType, CoroutineType
 
+from aiohttp import ClientSession
 
 try:
     import certifi
@@ -127,6 +128,7 @@ class Bot:
             return lambda chat, msg: logger.debug("no handle for %s", mt)
 
         # Init default handlers and callbacks
+        self.on_message = lambda x: None
         self._handlers = {mt: no_handle(mt) for mt in MESSAGE_TYPES}
         self._commands = []
         self._callbacks = []
@@ -550,8 +552,13 @@ class Bot:
         """
         headers = {"range": range} if range else None
         url = "{0}/file/bot{1}/{2}".format(API_URL, self.api_token, file_path)
+        print('getting', url)
         return self.session.get(
             url, headers=headers, proxy=self.proxy, proxy_auth=self.proxy_auth)
+
+    def download_file2(self, path):
+        url = f'https://api.telegram.org/file/bot{self.api_token}/{path}'
+        return ClientSession().get(url)
 
     def get_user_profile_photos(self, user_id, **options):
         """
@@ -651,10 +658,15 @@ class Bot:
         self._chats[str(chat.id)] = chat
         print('chat attached', chat, chat.id)
         return chat
+    
     def _get_chat(self, id):
         if not id:
             return
         return self._chats.get(str(id))
+
+    def get_chat(self, id):
+        return self._get_chat(id)
+
 
     def get_or_create_chat_state(self, message):
         """
@@ -688,6 +700,15 @@ class Bot:
         """
 
         chat = self.get_or_create_chat_state(message)
+        
+        if self.on_message:
+            self.on_message(chat)
+        
+        #Chat specific waiters
+        for mt in list(chat.handlers.keys()):
+            if mt in message:
+                chat.resolve_future(chat.handlers.pop(mt), message)
+                return
 
         for mt, func in self._handlers.items():
             if mt in message:
@@ -696,6 +717,7 @@ class Bot:
                 # if isinstance(func, AsyncGeneratorType):
                 #     return self.play(chat, coro)
                 return coro
+
 
         if "text" not in message:
             return
@@ -800,6 +822,7 @@ class Bot:
     async def play_gen(chat, agen):
         nextval = None
         while True:
+            await asyncio.sleep(0.05)
             try:
                 item = await agen.asend(nextval)
                 nextval = None
@@ -842,6 +865,9 @@ class Bot:
                 return cls.play_gen(chat, gen_or_coro)
             return gen_or_coro
         return wrapper
+
+
+    
 
 
 class InlineQuery:
@@ -888,15 +914,23 @@ class CallbackQuery:
 
 class Button(dict):
     def __init__(self, text, callback_data, **kwargs):
-        super().__init__(text=text, callback_data=callback_data, **kwargs)
+        self.cbprefix = kwargs.get('cbprefix', '')
+        super().__init__(text=text, callback_data=self.cbprefix + callback_data, **kwargs)
+
+    def set_cbprefix(self, cbprefix):
+        self.cbprefix = cbprefix
 
 
 class Row(list):
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         self.attached = False
+        self.cbprefix = kwargs.get('cbprefix', '')
         if len(args):
             for item in args:
                 self.append(item)
+
+    def set_cbprefix(self, cbprefix):
+        self.cbprefix = cbprefix
 
     def attach(self):
         self.attached = True
@@ -939,4 +973,5 @@ class BotApiError(RuntimeError):
     def __init__(self, *args, response):
         super().__init__(*args)
         self.response = response
+
 
