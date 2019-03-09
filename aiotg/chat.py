@@ -60,12 +60,15 @@ class Chat:
         """
         Edit the message in this chat.
 
-        :param int message_id: ID of the message to edit
+        :param int message_id: ID of the message to edit or send notification
         :param str text: Text to edit the message to
         :param dict markup: Markup options
         :param str parse_mode: Text parsing mode (``"Markdown"``, ``"HTML"`` or
             ``None``)
         """
+        if isinstance(message_id, dict) and 'result' in message_id:
+            message_id = message_id['result']['message_id']
+
         if markup is None:
             markup = {}
 
@@ -375,8 +378,11 @@ class Chat:
         """
         Delete message from this chat
 
-        :param int message_id: ID of the message
+        :param int message_id: ID of the message or returned struct
         """
+        if isinstance(message_id, dict) and 'result' in message_id:
+            print(message_id)
+            message_id = message_id['result']['message_id']
         return self.bot.api_call(
             "deleteMessage", chat_id=self.id, message_id=message_id
         )
