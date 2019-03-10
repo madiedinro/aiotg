@@ -821,27 +821,31 @@ class Bot:
     @staticmethod
     async def play_gen(chat, agen):
         nextval = None
+        nexterr = None
         while True:
             await asyncio.sleep(0.05)
             try:
-                item = await agen.asend(nextval)
+                if nexterr:
+                    item = await agen.athrow(nexterr)
+                else:
+                    item = await agen.asend(nextval)
                 nextval = None
+                nexterr = None
                 if isinstance(item, Exception):
+                    logger.error('play generate exception', ex=item)
                     raise item
                 elif asyncio.isfuture(item):
                     nextval = await item
                 elif isinstance(item, CoroutineType):
-                    try:
-                        nextval = await item
-                    except Exception as ex:
-                        nextval = ex
+                    nextval = await item
                 elif isinstance(item, str):
                     await chat.send_text(item)
             except GeneratorExit:
                 logger.warn('generator exit')
                 break
             except StopChatContext as ex:
-                await chat.send_message(ex.message)
+                if ex.message:
+                    await chat.send_message(ex.message)
                 break
             except StopAsyncIteration as ex:
                 logger.info('asyncio stop iterator xx')
@@ -851,9 +855,10 @@ class Bot:
                 break
             except BotApiError as ex:
                 logger.exception('bot api error catched')
-                nextval = ex
+                nexterr = ex
             except Exception:
                 logger.exception('not matched ex')
+                nexterr = ex
                 break
 
     

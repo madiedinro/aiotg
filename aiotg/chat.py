@@ -483,6 +483,29 @@ class Chat:
     def new_context(self):
         return AsyncChatContext(self)
 
+
+    def set(self, key, val):
+        self.state[key] = val
+
+    def get(self, key):
+        return self.state.get(key)
+
+        
+    # def __setitem__(self, key, val):
+    #     self.state[key] = val
+
+    # def __iter__(self):
+    #     return iter(self.state)
+
+    # def __delitem__(self, key):
+    #     del self.state[key]
+    
+    # def __len__(self):
+    #     return len(self.state)
+
+    # def __getitem__(self, key):
+    #     return self.state
+
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
         self.bot = bot
         self.handlers = {}
@@ -491,7 +514,9 @@ class Chat:
         self.future = None
         self.future_cb = None
         self.callback_pattern = None
+        # work on contexts
         self.contexts = []
+        self.state = {}
         
         if src_message and "from" in src_message:
             sender = src_message["from"]
@@ -500,6 +525,7 @@ class Chat:
         self.sender = Sender(sender)
         self.id = chat_id
         self.type = chat_type
+
 
     @staticmethod
     def from_message(bot, message):
