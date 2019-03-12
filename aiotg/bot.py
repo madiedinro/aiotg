@@ -19,6 +19,7 @@ try:
 except ImportError:
     certifi = None
 
+
 from .chat import Chat, Sender, AsyncChatContext, StopChatContext
 from .reloader import run_with_reloader
 
@@ -86,6 +87,7 @@ class Bot:
 
     def __init__(self,
                  api_token,
+                 state,
                  api_timeout=API_TIMEOUT,
                  chatbase_token=None,
                  name=None,
