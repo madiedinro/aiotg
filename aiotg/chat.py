@@ -87,6 +87,9 @@ class Chat:
         :param int message_id: ID of the message to edit
         :param dict markup: Markup options
         """
+        if isinstance(message_id, dict) and 'result' in message_id:
+            message_id = message_id['result']['message_id']
+            
         return self.bot.edit_message_reply_markup(
             self.id, message_id, reply_markup=self.bot.json_serialize(markup)
         )
@@ -424,18 +427,17 @@ class Chat:
         self.callback_pattern = pattern
         return self.future_cb
 
-    def wait_message(self):
-        self.future = self.bot.future()
+    def wait_message(self, fut=None):
+        self.future = fut or self.bot.future()
         return self.future
     
-    def wait_struct(self, struct):
+    def wait_struct(self, struct, fut=None):
         """
         Wait for special message type
         For example file
         """
-        fut = self.bot.future()
-        self.handlers[struct] = fut
-        return fut
+        self.handlers[struct] = fut or self.bot.future()
+        return self.handlers[struct]
 
     def resolve_event(self, name, data):
         waiter = self.event_waiters.pop(name, None)
@@ -513,6 +515,7 @@ class Chat:
         self.message = src_message
         self.future = None
         self.future_cb = None
+        self.allow_empty = False
         self.callback_pattern = None
         # work on contexts
         self.contexts = []

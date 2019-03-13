@@ -408,6 +408,9 @@ class Bot:
 
         return wrap
 
+    def remove_handler(self, msg_type):
+        self._handlers.pop(msg_type, None)
+
     def channel(self, channel_name):
         """
         Construct a Chat object used to post to channel
@@ -849,7 +852,7 @@ class Bot:
                 if ex.message:
                     await chat.send_message(ex.message)
                 break
-            except StopAsyncIteration as ex:
+            except StopAsyncIteration:
                 logger.info('asyncio stop iterator xx')
                 break
             except asyncio.CancelledError:
@@ -858,7 +861,7 @@ class Bot:
             except BotApiError as ex:
                 logger.exception('bot api error catched')
                 nexterr = ex
-            except Exception:
+            except Exception as ex:
                 logger.exception('not matched ex')
                 nexterr = ex
                 break
@@ -941,6 +944,22 @@ class Row(list):
 
     def attach(self):
         self.attached = True
+
+
+class Keyboard(dict):
+    def __init__(self, *rows, **kwargs):
+        super().__init__(**kwargs)
+        self['keyboard'] = [*(rows or [])]
+        self.new_row()
+        
+    def new_row(self):
+        self.row = Row()
+
+    def add_btn(self, btn):
+        self.row.append(btn)
+        if not self.row.attached:
+            self.row.attach()
+            self['keyboard'].append(self.row)
 
 
 class InlineKeyboard(dict):
