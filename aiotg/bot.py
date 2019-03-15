@@ -837,7 +837,7 @@ class Bot:
                 nextval = None
                 nexterr = None
                 if isinstance(item, Exception):
-                    logger.error('play generate exception', ex=item)
+                    logger.error('play generate exception %s', item)
                     raise item
                 elif asyncio.isfuture(item):
                     nextval = await item
