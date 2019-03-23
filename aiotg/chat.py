@@ -26,7 +26,7 @@ class Chat:
         """
         return self.bot.send_message(self.id, text, **options)
 
-    def send_message(self, text, markup=None, parse_mode=None):
+    def send_message(self, text, markup=None, parse_mode=None, **options):
 
         if markup is None:
             markup = {}
@@ -34,6 +34,7 @@ class Chat:
             text,
             reply_markup=self.bot.json_serialize(markup),
             parse_mode=parse_mode,
+            **options
         )
 
     def reply(self, text, markup=None, parse_mode=None):

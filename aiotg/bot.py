@@ -7,6 +7,7 @@ from urllib.parse import splitpasswd, splituser, urlparse
 import aiohttp
 from aiohttp import web
 from aiosocksy import Socks4Auth, Socks5Auth, connector as socks_connector
+from async_timeout import timeout
 import json
 from collections import defaultdict
 from types import AsyncGeneratorType, CoroutineType
@@ -976,6 +977,39 @@ class InlineKeyboard(dict):
             self.row.attach()
             self['inline_keyboard'].append(self.row)
 
+
+class ButtonList:
+    def __init__(self, chat, title=None, name=None, items=None, timeout=30):
+        self.chat = chat
+        self.msg = None
+        self.name = name
+        self.title = title
+        self.timeout = timeout
+        if items:
+            if isinstance(items, dict):
+                self.items = list(items.items())
+            else:
+                self.items = items
+        else:
+            self.items = []
+    
+    async def show(self):
+        prefix = f'{self.name}-'
+        kb = InlineKeyboard(*(Row(Button(v, prefix+k)) for k,v in self.items))
+        self.msg = await self.chat.send_message(self.title or 'Choose', markup=kb)
+        try:
+            async with timeout(self.timeout):
+                cbq = await self.chat.wait_callback(rf'^{prefix}(\w+)')
+                result = cbq.match.group(1)
+                if result and result.strip():
+                    result = result.strip()
+                    for k, v in self.items:
+                        if result == k:
+                            return (k, v,)
+        except TimeoutError:
+            pass    
+        finally:
+            await self.chat.delete_message(self.msg)
 
 class PreCheckoutQuery:
     def __init__(self, bot, src):
