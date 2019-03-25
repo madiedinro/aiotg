@@ -477,6 +477,10 @@ class Chat:
     def stop_play(self, message):
         return StopChatContext(message)
 
+    def stop_unless(self, condition, message):
+        if not condition:
+            return self.stop_play(message)
+
     def register_context(self, instance):
         self.contexts.insert(0, instance)
     
