@@ -497,22 +497,6 @@ class Chat:
     def get(self, key):
         return self.state.get(key)
 
-        
-    # def __setitem__(self, key, val):
-    #     self.state[key] = val
-
-    # def __iter__(self):
-    #     return iter(self.state)
-
-    # def __delitem__(self, key):
-    #     del self.state[key]
-    
-    # def __len__(self):
-    #     return len(self.state)
-
-    # def __getitem__(self, key):
-    #     return self.state
-
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
         self.bot = bot
         self.handlers = {}
@@ -547,9 +531,27 @@ class Chat:
         chat = message["chat"]
         return Chat(bot, chat["id"], chat["type"], message)
 
+"""
+user_msg={
+    'message_id': 15976, 
+    'from': {'id': 97444302, 'is_bot': False, 'first_name': 'Dmitry', 'last_name': 'Rodin', 'username': 'dmitryrodin', 'language_code': 'en'}, 
+    'chat': {'id': 97444302, 'first_name': 'Dmitry', 'last_name': 'Rodin', 'username': 'dmitryrodin', 'type': 'private'}, 
+    'date': 1552470054, 
+    'contact': {
+        'phone_number': '79261244141', 
+        'first_name': 'Dmitry', 
+        'last_name': 'Rodin', 
+        'user_id': 97444302
+    }
+}
+"""
 
 class Sender(dict):
     """A small wrapper for sender info, mostly used for logging"""
+
+    @property
+    def id(self):
+        return self.get('id')
 
     def __repr__(self):
         uname = " (%s)" % self["username"] if "username" in self else ""
