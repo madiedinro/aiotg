@@ -26,8 +26,9 @@ class Chat:
         """
         return self.bot.send_message(self.id, text, **options)
 
-    def send_message(self, text, markup=None, parse_mode=None, **options):
-
+    def send_message(self, text, markup=None, parse_mode=None, disable_web_page_preview=None, **options):
+        if disable_web_page_preview is not None:
+            options['disable_web_page_preview'] = 'true' if disable_web_page_preview else 'false'
         if markup is None:
             markup = {}
         return self.send_text(
