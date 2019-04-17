@@ -519,6 +519,15 @@ class Chat:
         self.id = chat_id
         self.type = chat_type
 
+    CHAT_PRIVATE = 'private'
+    CHAT_GROUP = 'group'
+    CHAT_SUPERGROUP = 'supergroup'
+
+    @classmethod
+    def from_scratch(cls, bot, chat_id, chat_type=None):
+        if chat_type != cls.CHAT_GROUP and chat_type != cls.CHAT_SUPERGROUP:
+            chat_type = cls.CHAT_PRIVATE
+        return Chat(bot, chat_id, chat_type)
 
     @staticmethod
     def from_message(bot, message):

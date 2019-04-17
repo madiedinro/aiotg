@@ -426,8 +426,11 @@ class Bot:
 
         :param str user_id: User id
         """
-
-        return self._attach_chat(Chat(self, user_id, "private"))
+        chat = self._get_chat(id)
+        if not chat:
+            chat = Chat(self, user_id, "private")
+        
+        return self._attach_chat(chat)
 
     def group(self, group_id):
         """
@@ -674,7 +677,7 @@ class Bot:
         return self._get_chat(id)
 
 
-    def get_or_create_chat_state(self, message):
+    def get_or_create_chat_state(self, message=None):
         """
         """
 
@@ -948,7 +951,9 @@ class Row(list):
 
 
 class Keyboard(dict):
-    def __init__(self, *rows, **kwargs):
+    def __init__(self, *rows, one_time_keyboard=None, **kwargs):
+        if one_time_keyboard:
+            kwargs['one_time_keyboard'] = 'true'
         super().__init__(**kwargs)
         self['keyboard'] = [*(rows or [])]
         self.new_row()
