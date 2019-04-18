@@ -497,6 +497,13 @@ class Chat:
 
     def get(self, key):
         return self.state.get(key)
+    
+    @property
+    def sender_id(self):
+        if self.is_private():
+            return self.id
+        else:
+            return self.sender.id
 
     def __init__(self, bot, chat_id, chat_type="private", src_message=None):
         self.bot = bot
