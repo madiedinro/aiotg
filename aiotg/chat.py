@@ -16,6 +16,9 @@ class Chat:
     Wrapper for telegram chats, passed to most callbacks
     """
 
+    def sleep(self, duration):
+        return asyncio.sleep(duration)
+
     def send_text(self, text, **options):
         """
         Send a text message to the chat.
