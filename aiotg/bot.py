@@ -984,7 +984,7 @@ class InlineKeyboard(dict):
 
 
 class ButtonList:
-    def __init__(self, chat, title=None, name=None, items=None, timeout=30):
+    def __init__(self, chat, title=None, name=None, items=None, timeout=600):
         self.chat = chat
         self.msg = None
         self.name = name
