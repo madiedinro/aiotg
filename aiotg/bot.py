@@ -984,8 +984,8 @@ class InlineKeyboard(dict):
 
 
 class ButtonList:
-    def __init__(self, chat, title=None, name=None, items=None, timeout=600):
-        self.chat = chat
+    def __init__(self, chat: Chat, title=None, name=None, items=None, timeout=600):
+        self.chat: Chat = chat
         self.msg = None
         self.name = name
         self.title = title
@@ -998,10 +998,12 @@ class ButtonList:
         else:
             self.items = []
     
+
     async def show(self):
         prefix = f'{self.name}-'
         kb = InlineKeyboard(*(Row(Button(v, prefix+k)) for k,v in self.items))
-        self.msg = await self.chat.send_message(self.title or 'Choose', markup=kb)
+        title = self.title or 'Choose'
+        self.msg = await self.chat.send_message(title, markup=kb)
         try:
             async with timeout(self.timeout):
                 cbq = await self.chat.wait_callback(rf'^{prefix}(\w+)')
@@ -1010,6 +1012,7 @@ class ButtonList:
                     result = result.strip()
                     for k, v in self.items:
                         if result == k:
+                            await self.chat.edit_text(self.msg, ' '.join([title, v]))
                             return (k, v,)
         except TimeoutError:
             pass    
