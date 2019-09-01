@@ -848,13 +848,13 @@ class Bot:
                 elif isinstance(item, CoroutineType):
                     nextval = await item
                 elif isinstance(item, str):
-                    await chat.send_text(item)
+                    await chat.send_message(item, parse_mode='Markdown')
             except GeneratorExit:
                 logger.warn('generator exit')
                 break
             except StopChatContext as ex:
                 if ex.message:
-                    await chat.send_message(ex.message)
+                    await chat.send_message(ex.message, parse_mode='Markdown')
                 break
             except StopAsyncIteration:
                 logger.info('asyncio stop iterator xx')
@@ -1012,12 +1012,21 @@ class ButtonList:
                     result = result.strip()
                     for k, v in self.items:
                         if result == k:
-                            await self.chat.edit_text(self.msg, ' '.join([title, v]))
+                            await self.chat.edit_text(self.msg, '\n > '.join([title, v]))
                             return (k, v,)
+
+                            # await self.chat.edit_text(self.msg, ' '.join([title, v]))
+                            # return (k, v,)
         except TimeoutError:
-            pass    
+            await self.chat.edit_text(self.msg, '\n > '.join([title, '... Не дождалась ответа 😞']))
+            return
         finally:
             await self.chat.delete_message(self.msg)
+        # except TimeoutError:
+        #     await self.chat.edit_text(self.msg)
+        #     await self.chat.send_message('Слишком долго. Отмена.')
+        # finally:
+
 
 class PreCheckoutQuery:
     def __init__(self, bot, src):
