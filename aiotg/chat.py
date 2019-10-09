@@ -10,6 +10,9 @@ class StopChatContext(StopAsyncIteration):
     def __init__(self, message):
         self.message = message
 
+async def noop():
+    pass
+
 
 class Chat:
     """
@@ -29,11 +32,17 @@ class Chat:
         """
         return self.bot.send_message(self.id, text, **options)
 
+    def send_markdown(self, *args, **kwargs):
+        kwargs.pop('parse_mode', None)
+        return self.send_message(*args, parse_mode='markdown', **kwargs)
+
     def send_message(self, text, markup=None, parse_mode=None, disable_web_page_preview=None, **options):
         if disable_web_page_preview is not None:
             options['disable_web_page_preview'] = 'true' if disable_web_page_preview else 'false'
         if markup is None:
             markup = {}
+        if not text:
+            return noop()
         return self.send_text(
             text,
             reply_markup=self.bot.json_serialize(markup),

@@ -927,8 +927,19 @@ class CallbackQuery:
 
 
 class Button(dict):
-    def __init__(self, text, callback_data, **kwargs):
+    def __init__(self, text, callback_data, params=None, **kwargs):
         self.cbprefix = kwargs.get('cbprefix', '')
+
+        # if params:
+            
+        #     kwargs['login_url'] = {
+        #         'url': params['login_url'],
+        #         'request_write_access': 'true',
+        #         # 'forward_text': ''
+        #         # 'bot_username': 'digitalgodbot',
+
+        #     }
+        # add_kwargs = {}
         super().__init__(text=text, callback_data=self.cbprefix + callback_data, **kwargs)
 
     def set_cbprefix(self, cbprefix):
@@ -948,7 +959,9 @@ class Row(list):
 
     def attach(self):
         self.attached = True
-
+    
+    # def __iter__(self):
+    #     return iter(self['keyboard'])
 
 class Keyboard(dict):
     def __init__(self, *rows, one_time_keyboard=None, **kwargs):
@@ -966,6 +979,9 @@ class Keyboard(dict):
         if not self.row.attached:
             self.row.attach()
             self['keyboard'].append(self.row)
+
+    def __iter__(self):
+        return iter(self['keyboard'])
 
 
 class InlineKeyboard(dict):
@@ -1001,7 +1017,23 @@ class ButtonList:
 
     async def show(self):
         prefix = f'{self.name}-'
-        kb = InlineKeyboard(*(Row(Button(v, prefix+k)) for k,v in self.items))
+        
+        answers = []
+        rows = []
+        for list_or_btn in self.items:
+            if isinstance(list_or_btn, list):
+                btns = [Button(v, prefix+k, params=p) for k, v, *p in list_or_btn]
+                row = Row(*btns)
+                answers += btns
+                rows.append(row)
+            else:
+                [k, v, *p] = list_or_btn
+                btn = Button(v, prefix+k, params=p)
+                answers.append(btn)
+                row = Row(btn)
+            rows.append(row)
+
+        kb = InlineKeyboard(*rows)
         title = self.title or 'Choose'
         self.msg = await self.chat.send_message(title, markup=kb)
         try:
@@ -1010,18 +1042,20 @@ class ButtonList:
                 result = cbq.match.group(1)
                 if result and result.strip():
                     result = result.strip()
-                    for k, v in self.items:
+                    for [k, v, *p] in self.items:
                         if result == k:
-                            await self.chat.edit_text(self.msg, '\n > '.join([title, v]))
+                            # await self.chat.edit_text(self.msg, '\n > '.join([title, v]))
                             return (k, v,)
 
                             # await self.chat.edit_text(self.msg, ' '.join([title, v]))
                             # return (k, v,)
         except TimeoutError:
-            await self.chat.edit_text(self.msg, '\n > '.join([title, '... Не дождалась ответа 😞']))
+            await self.chat.edit_text(self.msg, ' > '.join([title, '... Не дождалась ответа 😞']))
             return
-        finally:
-            await self.chat.delete_message(self.msg)
+        else:
+            await self.chat.edit_text(self.msg, ' > '.join([title, v]))
+            # await self.chat.delete_message(self.msg)
+            
         # except TimeoutError:
         #     await self.chat.edit_text(self.msg)
         #     await self.chat.send_message('Слишком долго. Отмена.')
