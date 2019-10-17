@@ -24,9 +24,7 @@ except ImportError:
 from .chat import Chat, Sender, AsyncChatContext, StopChatContext
 from .reloader import run_with_reloader
 
-__author__ = "Stepan Zastupov"
-__copyright__ = "Copyright 2015-2017 Stepan Zastupov"
-__license__ = "MIT"
+
 
 API_URL = "https://api.telegram.org"
 API_TIMEOUT = 60
@@ -580,13 +578,13 @@ class Bot:
         return self.api_call(
             "getUserProfilePhotos", user_id=str(user_id), **options)
 
-    def track(self, message, name="Message"):
-        """
-        Track message using http://chatbase.com
-        Set chatbase_token to make it work
-        """
-        if self.chatbase_token:
-            asyncio.ensure_future(self._track(message, name))
+    # def track(self, message, name="Message"):
+    #     """
+    #     Track message using http://chatbase.com
+    #     Set chatbase_token to make it work
+    #     """
+    #     if self.chatbase_token:
+    #         asyncio.ensure_future(self._track(message, name))
 
     def stop(self):
         self._running = False
@@ -646,22 +644,22 @@ class Bot:
         except Exception as e:
             logger.debug(e)
 
-    async def _track(self, message, name):
-        response = await self.session.post(
-            CHATBASE_URL,
-            data=self.json_serialize({
-                "api_key": self.chatbase_token,
-                "type": "user",
-                "message": message["text"],
-                "platform": "telegram",
-                "user_id": message["from"]["id"],
-                "version": "1.0",
-                "not_handled": "true",
-            }),
-        )
-        if response.status != 200:
-            logger.info("error submiting stats %d", response.status)
-        await response.release()
+    # async def _track(self, message, name):
+    #     response = await self.session.post(
+    #         CHATBASE_URL,
+    #         data=self.json_serialize({
+    #             "api_key": self.chatbase_token,
+    #             "type": "user",
+    #             "message": message["text"],
+    #             "platform": "telegram",
+    #             "user_id": message["from"]["id"],
+    #             "version": "1.0",
+    #             "not_handled": "true",
+    #         }),
+    #     )
+    #     if response.status != 200:
+    #         logger.info("error submiting stats %d", response.status)
+    #     await response.release()
 
     def _attach_chat(self, chat):
         self._chats[str(chat.id)] = chat
@@ -682,14 +680,16 @@ class Bot:
         """
 
         chat_data = message['chat']
+        chat_id = chat_data.get('id')
         chat = None
 
         if chat_data['type'] == 'private':
-            chat = self._get_chat(chat_data.get('id'))
+            chat = self._get_chat(chat_id)
 
         if not chat:
             chat = Chat.from_message(self, message)
 
+        chat.with_message(message)
         # Adding chat to the state
         if chat.is_private():
             self._attach_chat(chat)
@@ -721,7 +721,7 @@ class Bot:
 
         for mt, func in self._handlers.items():
             if mt in message:
-                self.track(message, mt)
+                # self.track(message, mt)
                 coro = func(chat, message[mt])
                 # if isinstance(func, AsyncGeneratorType):
                 #     return self.play(chat, coro)
@@ -734,7 +734,7 @@ class Bot:
         for patterns, handler in self._commands:
             m = re.search(patterns, message["text"], re.I)
             if m:
-                self.track(message, handler.__name__)
+                # self.track(message, handler.__name__)
                 coro = handler(chat, m)
                 return coro
 
@@ -749,7 +749,7 @@ class Bot:
             once_handler = self._once.pop(chat.id, None)
             if once_handler:
                 return once_handler(chat, message)
-            self.track(message, "default")
+            # self.track(message, "default")
             return self._default(chat, message)
 
     def _process_inline_query(self, query):
@@ -814,6 +814,8 @@ class Bot:
             if ut in update:
                 coro = self._process_message(update[ut])
                 break
+        if coro:
+            asyncio.ensure_future(coro)
         else:
             if "inline_query" in update:
                 coro = self._process_inline_query(update["inline_query"])
@@ -824,8 +826,6 @@ class Bot:
                     update["pre_checkout_query"])
             else:
                 logger.error("don't know how to handle update: %s", update)
-        if coro:
-            asyncio.ensure_future(coro)
 
     @staticmethod
     async def play_gen(chat, agen):

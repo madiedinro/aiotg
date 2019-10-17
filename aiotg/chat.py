@@ -10,6 +10,7 @@ class StopChatContext(StopAsyncIteration):
     def __init__(self, message):
         self.message = message
 
+
 async def noop():
     pass
 
@@ -510,6 +511,23 @@ class Chat:
     def get(self, key):
         return self.state.get(key)
     
+
+    def with_message(self, message = None):
+        logger.debug('with_message %s', message)
+
+        if not message:
+            return
+    
+        chat = message["chat"]
+
+        self.id = chat["id"]
+        self.type = chat["type"]
+        self.message = message
+        
+        if message.get('from'):
+            self.sender = Sender(message['from'])
+
+
     @property
     def sender_id(self):
         if self.is_private():
@@ -521,7 +539,6 @@ class Chat:
         self.bot = bot
         self.handlers = {}
         self.event_waiters = {}
-        self.message = src_message
         self.future = None
         self.future_cb = None
         self.allow_empty = False
@@ -530,13 +547,12 @@ class Chat:
         self.contexts = []
         self.state = {}
         
-        if src_message and "from" in src_message:
-            sender = src_message["from"]
-        else:
-            sender = {"first_name": "N/A"}
-        self.sender = Sender(sender)
         self.id = chat_id
         self.type = chat_type
+        self.message = src_message
+        self.sender = {"first_name": "N/A"}
+
+        self.with_message(src_message)
 
     CHAT_PRIVATE = 'private'
     CHAT_GROUP = 'group'
@@ -561,6 +577,55 @@ class Chat:
         return Chat(bot, chat["id"], chat["type"], message)
 
 """
+
+update = {
+    'update_id': 456875180, 
+    'message': {
+        'message_id': 40389, 
+        'from': {
+            'id': 97444302, 
+            'is_bot': False, 
+            'first_name': 'Dmitry', 
+            'last_name': 'Rodin', 
+            'username': 'dmitryrodin', 
+            'language_code': 'en'
+        }, 
+        'chat': {
+            'id': 97444302, 
+            'first_name': 'Dmitry', 
+            'last_name': 'Rodin', 
+            'username': 'dmitryrodin', 
+            'type': 'private'
+        }, 
+        'date': 1571235520, 
+        'text': 'sdfdsf'
+    }
+}
+"""
+
+"""
+
+
+{
+    'update_id': 456874412, 
+    'message': {
+        'message_id': 377, 
+        'from': {
+            'id': 97444302, 'is_bot': False, 'first_name': 'Dmitry', 'last_name': 'Rodin', 'username': 'dmitryrodin', 'language_code': 'en'
+        }, 
+        'chat': {
+            'id': -1001254672604, 'title': 'MDC #1 | Data collecting', 'type': 'supergroup'
+        }, 
+        'date': 1570691239, 
+        'text': 'Ребята, пока не забыл, для учившихся у нас есть отдельный "котел", называющийся сообщество Digital God. Всех кому интересны наши обновы и общение с другими учениками прошу перейти в чатик ссылке https://t.me/joinchat/Bc7hzhHnaIcFHYlZhmirIQ', 'entities': [
+            {'offset': 195, 'length': 44, 'type': 'url'}
+        ]
+    }
+}
+"""
+
+
+"""
 user_msg={
     'message_id': 15976, 
     'from': {'id': 97444302, 'is_bot': False, 'first_name': 'Dmitry', 'last_name': 'Rodin', 'username': 'dmitryrodin', 'language_code': 'en'}, 
@@ -571,6 +636,25 @@ user_msg={
         'first_name': 'Dmitry', 
         'last_name': 'Rodin', 
         'user_id': 97444302
+    }
+}
+"""
+
+
+
+
+"""
+user_msg={
+    'message_id': 39653, 
+    'from': {'id': 792116409, 'is_bot': True, 'first_name': 'Alena Mayer BOT DG', 'username': 'digitalgodbot'}, 
+    'chat': {'id': 412303866, 'first_name': 'Влад', 'last_name': 'Иващенко', 'username': 'ivashchenk0', 'type': 'private'}, 
+    'date': 1570612646, 
+    'text': 'Заполнение данных', 
+    'reply_markup': {
+        'inline_keyboard': [
+            [{'text': 'Ввести самостоятельно', 'callback_data': 'fill_data-manual'}], 
+            [{'text': 'Взять из Facebook', 'callback_data': 'fill_data-facebook'}]
+        ]
     }
 }
 """
